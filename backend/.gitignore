@@ -1,1 +1,54 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary and test result files
+*.test
+*.out
+
+# Output of the go coverage tool
+coverage.out
+
+# If you have a vendor directory (for vendoring dependencies)
+vendor/
+
+# The Go workspace settings (Go 1.18 and later)
+go.work
+go.work.sum
+
+# Logs and debugging files
+*.log
+*.log.*
+
+# IDE or editor-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
 .env
+
+# Node.js dependency if you have a frontend (like in a full-stack Go app)
+node_modules/
+
+# Local Golang build cache
+/go-build/
+
+# macOS specific files
+.DS_Store
+
+# Linux and Unix related files
+*.pid
+*.tar.gz
+
+# Ignore JetBrains IDE files
+*.iml
+.idea/
+
+# Go dependency and Go build caches
+/go/bin/
+/go/pkg/

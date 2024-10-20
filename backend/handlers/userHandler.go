@@ -232,26 +232,69 @@ func generateJWT(username string) (string, error) {
 }
 
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
-	var user models.User
-	_ = json.NewDecoder(r.Body).Decode(&user)
-
-	collection := utils.GetCollection("users")
-	filter := bson.M{"username": user.Username}
-
-	update := bson.M{
-		"$set": bson.M{
-			"email": user.Email,
-			// Update other fields if necessary
-		},
+	// Create a map to hold incoming fields (like email) rather than decoding the entire user struct
+	var updateFields map[string]interface{}
+	err := json.NewDecoder(r.Body).Decode(&updateFields)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
 	}
 
-	_, err := collection.UpdateOne(context.TODO(), filter, update)
+	// Extract username from the query params
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get the users collection
+	collection := utils.GetCollection("users")
+
+	// Find the user by username
+	var existingUser models.User
+	err = collection.FindOne(context.TODO(), bson.M{"username": username}).Decode(&existingUser)
+	if err == mongo.ErrNoDocuments {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, "Error finding user", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if the provided email is the same as the current one
+	if newEmail, emailExists := updateFields["email"]; emailExists {
+		if newEmail == existingUser.Email {
+			http.Error(w, "The provided email is the same as the current one", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Check if the provided username is the same as the current one
+	if newUsername, usernameExists := updateFields["username"]; usernameExists {
+		if newUsername == existingUser.Username {
+			http.Error(w, "The provided username is the same as the current one", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Prepare the update document
+	update := bson.M{
+		"$set": updateFields, // Use the decoded fields to update only the provided ones
+	}
+
+	// Filter to find the correct user document by username
+	filter := bson.M{"username": username}
+
+	// Perform the update operation
+	_, err = collection.UpdateOne(context.TODO(), filter, update)
 	if err != nil {
 		http.Error(w, "Error updating user", http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode("User updated")
+	// Return a success response
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode("User updated successfully")
 }
 
 func ChangePassword(w http.ResponseWriter, r *http.Request) {
