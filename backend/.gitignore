@@ -13,6 +13,7 @@ coverage.out
 
 # If you have a vendor directory (for vendoring dependencies)
 vendor/
+tmp/
 
 # The Go workspace settings (Go 1.18 and later)
 go.work

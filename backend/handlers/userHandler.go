@@ -17,6 +17,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var jwtSecret = []byte(os.Getenv("JWT_SECRET")) // Replace with a secure secret
+
+// JWT Claims structure
+type Claims struct {
+	Username string `json:"username"`
+	jwt.RegisteredClaims
+}
+
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 
@@ -110,32 +118,157 @@ func contains(s string, c rune) bool {
 	return false
 }
 
+// Middleware to extract and validate the JWT token
+func validateToken(r *http.Request) (*jwt.Token, error) {
+	// Get the token from the Authorization header
+	authHeader := r.Header.Get("Authorization")
+
+	if authHeader == "" {
+		return nil, http.ErrNoCookie // No token found
+	}
+
+	// Token comes in the format "Bearer <token>", split it
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return nil, http.ErrNoCookie // Invalid token format
+	}
+
+	// Parse the JWT token
+	token, err := jwt.ParseWithClaims(tokenParts[1], &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		// Ensure the signing method is HMAC
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, http.ErrNoCookie
+		}
+		return jwtSecret, nil
+	})
+
+	if err != nil {
+		return nil, err // Token is invalid
+	}
+
+	return token, nil
+}
+
+// GetUser handler with JWT validation
 func GetUser(w http.ResponseWriter, r *http.Request) {
-	var user models.User
-	collection := utils.GetCollection("users")
-
-	username := r.URL.Query().Get("username")
-
-	err := collection.FindOne(context.TODO(), bson.M{"username": username}).Decode(&user)
-	if err == mongo.ErrNoDocuments {
-		http.Error(w, "User not found", http.StatusNotFound)
+	// Validate the JWT token
+	token, err := validateToken(r)
+	if err != nil {
+		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 		return
 	}
 
+	// Extract claims from the token if valid
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		// Access claims data if needed
+		// Example: username := claims.Username
+		_ = claims // Placeholder for any claim usage
+	} else {
+		http.Error(w, "Unauthorized: token claims invalid", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the username from query params
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+
+	// MongoDB collection
+	collection := utils.GetCollection("users")
+
+	// Find the user by username
+	var user models.User
+	err = collection.FindOne(context.TODO(), bson.M{"username": username}).Decode(&user)
+	if err != nil {
+		if err.Error() == "mongo: no documents in result" {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Set the content type and send the response
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
 
-func GetUsers(w http.ResponseWriter, r *http.Request) {
-	var users []models.User
+// GetUser handler with JWT validation and extracting username from JWT claims
+func GetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	// Validate the JWT token
+	token, err := validateToken(r)
+	if err != nil {
+		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract claims from the token if valid
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		http.Error(w, "Unauthorized: token claims invalid", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the username from the JWT claims
+	username := claims.Username
+	if username == "" {
+		http.Error(w, "Username not found in token", http.StatusBadRequest)
+		return
+	}
+
+	// MongoDB collection
 	collection := utils.GetCollection("users")
 
-	// Find all users (empty filter {})
+	// Find the user by username from the claims
+	var user models.User
+	err = collection.FindOne(context.TODO(), bson.M{"username": username}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Set the content type and send the response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+// GetUsers handler with JWT validation
+func GetUsers(w http.ResponseWriter, r *http.Request) {
+	// Validate the JWT token
+	token, err := validateToken(r)
+	if err != nil {
+		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract claims from the token if valid
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		// Optionally, use token claims like username, roles, etc.
+		_ = claims // Placeholder for claims usage, such as user role verification
+	} else {
+		http.Error(w, "Unauthorized: token claims invalid", http.StatusUnauthorized)
+		return
+	}
+
+	// MongoDB collection
+	collection := utils.GetCollection("users")
+
+	// Find all users (empty filter `{}`)
 	cursor, err := collection.Find(context.TODO(), bson.M{})
 	if err != nil {
 		http.Error(w, "Error fetching users", http.StatusInternalServerError)
 		return
 	}
 	defer cursor.Close(context.TODO())
+
+	// Prepare a slice to store users
+	var users []models.User
 
 	// Iterate through the cursor and decode each user
 	for cursor.Next(context.TODO()) {
@@ -147,21 +280,15 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 		users = append(users, user)
 	}
 
+	// Check if there were any errors during the iteration
 	if err := cursor.Err(); err != nil {
 		http.Error(w, "Error iterating through users", http.StatusInternalServerError)
 		return
 	}
 
 	// Return the list of users as JSON
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
-}
-
-var jwtSecret = []byte(os.Getenv("JWT_SECRET")) // Replace with a secure secret
-
-// JWT Claims structure
-type Claims struct {
-	Username string `json:"username"`
-	jwt.RegisteredClaims
 }
 
 func LoginUser(w http.ResponseWriter, r *http.Request) {
