@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import { useOutletContext } from 'react-router-dom';
+import { useAppSelector } from '../store/hooks';
 
 interface Order {
   id: number;
@@ -9,10 +12,14 @@ interface Order {
 }
 
 const ProfilePage: React.FC = () => {
-  const [user, setUser] = useState({
-    name: 'John Doe',
-    email: 'johndoe@example.com',
-  });
+
+  const user = useAppSelector((store) => store.userSlice.user)
+  console.log(user)
+
+  // const [user, setUser] = useState({
+    // name: 'John Doe',
+    // email: 'johndoe@example.com',
+  // });
 
   const [orders, setOrders] = useState<Order[]>([
     {
@@ -29,18 +36,28 @@ const ProfilePage: React.FC = () => {
     },
   ]);
 
+  const navigate = useNavigate()
+
+  const {token} = useOutletContext<{token: string}>();
   const [editMode, setEditMode] = useState(false);
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
+  const [name, setName] = useState(user?.username);
+  const [email, setEmail] = useState(user?.email);
 
   const handleEdit = () => {
     setEditMode(!editMode);
   };
 
   const handleSave = () => {
-    setUser({ name, email });
+    // setUser({ name, email });
     setEditMode(false);
   };
+
+  console.log(token)
+
+  useEffect(() => {
+  if (!token) 
+      navigate("/login")
+           }, [token, navigate])
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -58,12 +75,12 @@ const ProfilePage: React.FC = () => {
             {editMode ? (
               <input
                 type="text"
-                value={name}
+                value={name as string}
                 onChange={(e) => setName(e.target.value)}
                 className="border p-2 rounded-lg w-full"
               />
             ) : (
-              <p>{user.name}</p>
+              <p>{user?.username}</p>
             )}
           </div>
           <div className="mb-4">
@@ -71,12 +88,12 @@ const ProfilePage: React.FC = () => {
             {editMode ? (
               <input
                 type="email"
-                value={email}
+                value={email as string}
                 onChange={(e) => setEmail(e.target.value)}
                 className="border p-2 rounded-lg w-full"
               />
             ) : (
-              <p>{user.email}</p>
+              <p>{user?.email}</p>
             )}
           </div>
 

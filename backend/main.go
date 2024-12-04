@@ -27,6 +27,7 @@ func main() {
 	r.HandleFunc("/user", handlers.UpdateUser).Methods("PUT")
 	r.HandleFunc("/user", handlers.DeleteUser).Methods("DELETE")
 	r.HandleFunc("/order", handlers.CreateOrder).Methods("POST")
+	r.HandleFunc("/translations", handlers.GetTranslations).Methods("GET")
 
 	// CORS configuration
 	corsOptions := gorillaHandlers.AllowedOrigins([]string{"*"})                             // Allow all origins for development

@@ -1,7 +1,17 @@
 import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { NavLink, useNavigate, useOutletContext } from 'react-router-dom';
+import { useEffect } from 'react';
 
 const LandingPage: React.FC = () => {
+
+    const {token} = useOutletContext<{token: string}>();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+    if (token)
+        navigate("/profile");
+    }, [token, navigate])
+
   return (
     <div className="bg-gray-100 min-h-screen flex flex-col justify-between">
       {/* Hero Section */}

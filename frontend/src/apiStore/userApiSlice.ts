@@ -12,7 +12,7 @@ export const userApiSlice = createApi({
   reducerPath: "api", // Optional: name for the reducer path
   baseQuery: fetchBaseQuery({ baseUrl: "http://localhost:8000" }), // Base URL for the API
   endpoints: (builder) => ({
-    login: builder.query<{token: string}, {username: string, password: string}>({
+    login: builder.mutation<{token: string}, {username: string, password: string}>({
       query: (args) => {
         return {
           url: "/user/login",
@@ -30,6 +30,15 @@ export const userApiSlice = createApi({
         };
       },
     }),
+    getCurrentUser: builder.query<User, { token: string }>({
+      query: (args) => {
+        return {
+          url: "/user/current",
+          method: "GET",
+          headers: {Authorization: `Bearer ${args.token}`}
+        };
+      },
+    }),
     getAllUsers: builder.query<User[], void>({
       query: () => "api/users", // Replace with your API endpoint
     }),
@@ -38,8 +47,11 @@ export const userApiSlice = createApi({
 
 // Export the generated hooks
 export const {
+  useLoginMutation,
   useGetUserQuery,
   useLazyGetUserQuery,
   useGetAllUsersQuery,
   useLazyGetAllUsersQuery,
+  useGetCurrentUserQuery,
+  useLazyGetCurrentUserQuery
 } = userApiSlice;

@@ -1,29 +1,82 @@
 // src/components/Login.tsx
 
-import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
+import { NavLink, useNavigate, useOutletContext } from "react-router-dom";
+import { useGetUserQuery, useLazyGetCurrentUserQuery, useLazyGetUserQuery, useLoginMutation } from "../apiStore/userApiSlice";
+import {userActions} from '../stateSlices/userSlice'
 
 const Login: React.FC = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<{ username: boolean; password: boolean; }>();
+const {token} = useOutletContext<{token: string}>()
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const dispatch = useDispatch();
 
-    // Basic validation
-    if (!username || !password) {
-      setError('Please fill in all fields.');
-      return;
+  const navigate = useNavigate();
+
+  const [
+    login,
+    { isLoading: loginIsLoading, isError: loginIsError, error: loginError },
+  ] = useLoginMutation();
+
+  const 
+    [getCurrentUser]
+   = useLazyGetCurrentUserQuery();
+
+  const handleValidation = () => {
+    let tempErrors = {username: false, password: false};
+    let isValid = true;
+
+    if (username.length <= 0) {
+      tempErrors.username = true;
+      isValid = false;
+    }
+    if (password.length <= 8) {
+      tempErrors.username = true;
+      isValid = false;
     }
 
+    setErrors({...tempErrors})
+    return isValid
+  }
 
+const handleSubmit = useCallback(
+        async (e: React.FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
 
-    
-    // Reset error state
-    setError('');
+            // Basic validation
+            if (!username || !password) {
+                setError("Please fill in all fields.");
+                return;
+            }
 
-  };
+            try {
+                const token = await login({ username, password });
+                console.log(token.data?.token);
+
+                if (token.data?.token) {
+                    window.localStorage.setItem("token", token.data.token as string);
+                    dispatch(userActions.login(token.data.token));
+                    const user = await getCurrentUser({token: token.data.token})
+                    dispatch(userActions.setUser(user.data))
+                    setError(""); // Reset error state
+                } else {
+                    setError("Login failed.");
+                }
+            } catch (error) {
+                setError("An error occurred during login.");
+            }
+        },
+        [username, password, login, dispatch]
+    ); 
+
+  useEffect(() => {
+if (token)
+      navigate("/profile");
+  }, [token, handleSubmit, navigate])
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -32,7 +85,10 @@ const Login: React.FC = () => {
         {error && <p className="text-red-500 text-center">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium text-gray-700"
+            >
               Username
             </label>
             <input
@@ -43,9 +99,15 @@ const Login: React.FC = () => {
               className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+            {errors?.username && (
+            <p className="text-red-500">Απαιτείται το Ονοματεπώνυμο!</p>
+          )}
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700"
+            >
               Password
             </label>
             <input
@@ -56,6 +118,9 @@ const Login: React.FC = () => {
               className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+            {errors?.password && (
+            <p className="text-red-500">Απαιτείται το Ονοματεπώνυμο!</p>
+          )}
           </div>
           <button
             type="submit"
@@ -65,7 +130,10 @@ const Login: React.FC = () => {
           </button>
         </form>
         <p className="text-center text-sm text-gray-600">
-          Don't have an account? <NavLink to="/signup" className="text-blue-600 hover:underline">Sign up</NavLink>
+          Don't have an account?{" "}
+          <NavLink to="/signup" className="text-blue-600 hover:underline">
+            Sign up
+          </NavLink>
         </p>
       </div>
     </div>
